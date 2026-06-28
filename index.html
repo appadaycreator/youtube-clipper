@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube 切り抜きシステム</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+
+  header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+  header h1 span { color: #ff4e4e; }
+  .nav-btn { background: none; border: 1px solid #444; color: #aaa; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+  .nav-btn:hover { border-color: #ff4e4e; color: #ff4e4e; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+
+  .input-card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+  .input-card h2 { font-size: 15px; color: #fff; margin-bottom: 16px; }
+  .url-row { display: flex; gap: 10px; }
+  .url-input { flex: 1; background: #0f0f0f; border: 1px solid #444; border-radius: 8px; padding: 12px 16px; color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .url-input:focus { border-color: #ff4e4e; }
+  .url-input::placeholder { color: #555; }
+  .btn-start { background: #ff4e4e; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+  .btn-start:hover { background: #e63e3e; }
+  .btn-start:disabled { background: #555; cursor: not-allowed; }
+
+  .progress-card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-bottom: 24px; display: none; }
+  .progress-card.visible { display: block; }
+  .progress-title { font-size: 14px; color: #aaa; margin-bottom: 12px; }
+  .steps { display: flex; gap: 0; margin-bottom: 20px; }
+  .step { flex: 1; text-align: center; position: relative; }
+  .step::after { content: ''; position: absolute; top: 14px; left: 50%; width: 100%; height: 2px; background: #333; z-index: 0; }
+  .step:last-child::after { display: none; }
+  .step-dot { width: 28px; height: 28px; border-radius: 50%; background: #333; color: #666; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px; position: relative; z-index: 1; transition: all 0.3s; }
+  .step.active .step-dot { background: #ff4e4e; color: #fff; box-shadow: 0 0 12px rgba(255,78,78,0.5); }
+  .step.done .step-dot { background: #22c55e; color: #fff; }
+  .step-label { font-size: 11px; color: #666; }
+  .step.active .step-label { color: #ff4e4e; }
+  .step.done .step-label { color: #22c55e; }
+  .progress-bar-wrap { background: #333; border-radius: 99px; height: 6px; overflow: hidden; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, #ff4e4e, #ff8c4e); border-radius: 99px; transition: width 0.5s ease; }
+  .progress-msg { font-size: 13px; color: #aaa; margin-top: 10px; }
+
+  .section-title { font-size: 15px; color: #fff; font-weight: 600; margin-bottom: 12px; }
+  .job-card { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 16px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.2s; display: flex; align-items: center; gap: 12px; }
+  .job-card:hover { border-color: #555; }
+  .job-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .job-status.running { background: #f59e0b; animation: pulse 1.5s infinite; }
+  .job-status.done { background: #22c55e; }
+  .job-status.error { background: #ef4444; }
+  .job-status.pending { background: #555; }
+  .job-info { flex: 1; min-width: 0; }
+  .job-url { font-size: 13px; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job-meta { font-size: 11px; color: #666; margin-top: 2px; }
+  .job-clips { font-size: 12px; color: #aaa; flex-shrink: 0; }
+
+  .clips-grid { display: flex; flex-direction: column; gap: 14px; }
+  .clip-card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
+  .clip-card:hover { border-color: #555; }
+  .clip-header { padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px; }
+  .clip-rank { width: 32px; height: 32px; border-radius: 8px; background: #ff4e4e22; color: #ff4e4e; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .clip-meta { flex: 1; }
+  .clip-title { font-size: 14px; color: #fff; font-weight: 600; margin-bottom: 4px; }
+  .clip-category { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 99px; margin-bottom: 6px; font-weight: 600; }
+  .cat-A { background: #fef08a22; color: #fde047; }
+  .cat-B { background: #bbf7d022; color: #4ade80; }
+  .cat-C { background: #bfdbfe22; color: #60a5fa; }
+  .clip-reason { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .clip-excerpt { font-size: 12px; color: #666; font-style: italic; border-left: 2px solid #333; padding-left: 8px; }
+  .clip-time { font-size: 11px; color: #555; margin-top: 6px; }
+  .clip-actions { padding: 10px 16px; background: #151515; display: flex; gap: 8px; align-items: center; border-top: 1px solid #222; }
+  .btn-dl { background: #1e40af; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.2s; }
+  .btn-dl:hover { background: #1d4ed8; }
+  .btn-yt { background: #dc2626; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+  .btn-x { background: #0f172a; color: #fff; border: 1px solid #334155; padding: 7px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+  .approved-toggle { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; }
+  .toggle { width: 36px; height: 20px; background: #333; border-radius: 99px; position: relative; cursor: pointer; transition: background 0.2s; }
+  .toggle.on { background: #22c55e; }
+  .toggle::after { content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left 0.2s; }
+  .toggle.on::after { left: 18px; }
+
+  .settings-panel { display: none; }
+  .settings-panel.visible { display: block; }
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; color: #888; }
+  .field input { background: #0f0f0f; border: 1px solid #444; border-radius: 8px; padding: 10px 12px; color: #fff; font-size: 13px; outline: none; }
+  .field input:focus { border-color: #ff4e4e; }
+  .btn-save { background: #ff4e4e; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 16px; }
+
+  .empty { text-align: center; padding: 40px; color: #555; font-size: 14px; }
+
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  .back-btn { background: none; border: none; color: #666; cursor: pointer; font-size: 13px; padding: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 4px; }
+  .back-btn:hover { color: #aaa; }
+
+  .error-msg { background: #2d1515; border: 1px solid #7f1d1d; border-radius: 8px; padding: 14px; color: #fca5a5; font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>▶ YouTube <span>切り抜き</span>システム</h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span id="userLabel" style="font-size:12px;color:#666"></span>
+    <button class="nav-btn" id="settingsBtn">⚙ 設定</button>
+    <button class="nav-btn" onclick="logout()">ログアウト</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="input-card" id="inputSection">
+    <h2>YouTube URL を入力</h2>
+    <div class="url-row">
+      <input class="url-input" id="urlInput" type="text" placeholder="https://www.youtube.com/watch?v=..." />
+      <button class="btn-start" id="startBtn" onclick="startJob()">▶ 解析開始</button>
+    </div>
+  </div>
+
+  <div class="progress-card" id="progressCard">
+    <div class="progress-title" id="progressTitle">処理中...</div>
+    <div class="steps">
+      <div class="step" id="step-transcript"><div class="step-dot">1</div><div class="step-label">文字起こし</div></div>
+      <div class="step" id="step-analysis"><div class="step-dot">2</div><div class="step-label">AI解析</div></div>
+      <div class="step" id="step-translate"><div class="step-dot">3</div><div class="step-label">日本語化</div></div>
+      <div class="step" id="step-download"><div class="step-dot">4</div><div class="step-label">動画切り抜き</div></div>
+      <div class="step" id="step-done"><div class="step-dot">5</div><div class="step-label">完了</div></div>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+    <div class="progress-msg" id="progressMsg"></div>
+  </div>
+
+  <div id="mainView">
+
+    <div class="settings-panel" id="settingsPanel">
+      <div class="section-title">API設定</div>
+      <div class="settings-grid">
+        <div class="field"><label>Anthropic API Key</label><input type="password" id="s_anthropic" placeholder="sk-ant-..." /></div>
+        <div class="field"><label>YouTube Client ID</label><input type="text" id="s_yt_id" placeholder="xxx.apps.googleusercontent.com" /></div>
+        <div class="field"><label>YouTube Client Secret</label><input type="password" id="s_yt_secret" /></div>
+        <div class="field"><label>X API Key</label><input type="password" id="s_x_key" /></div>
+        <div class="field"><label>X API Secret</label><input type="password" id="s_x_secret" /></div>
+        <div class="field"><label>X Access Token</label><input type="password" id="s_x_token" /></div>
+        <div class="field"><label>X Access Token Secret</label><input type="password" id="s_x_token_secret" /></div>
+      </div>
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid #333">
+        <div style="font-size:13px;color:#888;margin-bottom:12px">アカウント変更</div>
+        <div class="settings-grid">
+          <div class="field"><label>新しいユーザー名</label><input type="text" id="s_new_user" placeholder="admin" /></div>
+          <div class="field"><label>新しいパスワード</label><input type="password" id="s_new_pass" placeholder="新しいパスワード" /></div>
+        </div>
+      </div>
+      <button class="btn-save" onclick="saveSettings()">保存</button>
+    </div>
+
+    <div id="jobListSection">
+      <div class="section-title">処理履歴</div>
+      <div id="jobList"><div class="empty">まだ処理したジョブがありません</div></div>
+    </div>
+
+    <div id="clipDetail" style="display:none">
+      <button class="back-btn" onclick="showJobList()">← 一覧に戻る</button>
+      <div id="clipCards" class="clips-grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://192.168.2.131:9001';
+const TOKEN_KEY = 'clipper_token';
+
+let currentJobId = null;
+let evtSource = null;
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${getToken()}`,
+  };
+}
+
+async function apiFetch(path, opts = {}) {
+  const headers = { ...authHeaders(), ...(opts.headers || {}) };
+  return fetch(`${API_BASE}${path}`, { ...opts, headers });
+}
+
+window.addEventListener('load', async () => {
+  if (!getToken()) {
+    window.location.href = 'login.html';
+    return;
+  }
+  try {
+    const me = await apiFetch('/api/auth/me');
+    if (!me.ok) {
+      localStorage.removeItem(TOKEN_KEY);
+      window.location.href = 'login.html';
+      return;
+    }
+    const { username } = await me.json();
+    document.getElementById('userLabel').textContent = username;
+  } catch (e) {
+    // Server unreachable — show error but don't redirect
+    document.getElementById('userLabel').textContent = '⚠ サーバー未接続';
+  }
+
+  loadJobs();
+  document.getElementById('settingsBtn').addEventListener('click', toggleSettings);
+  document.getElementById('urlInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') startJob();
+  });
+});
+
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  window.location.href = 'login.html';
+}
+
+function toggleSettings() {
+  const panel = document.getElementById('settingsPanel');
+  const jobList = document.getElementById('jobListSection');
+  const detail = document.getElementById('clipDetail');
+  const visible = panel.classList.toggle('visible');
+  if (visible) {
+    jobList.style.display = 'none';
+    detail.style.display = 'none';
+  } else {
+    showJobList();
+  }
+}
+
+async function saveSettings() {
+  const body = {
+    anthropic_api_key: document.getElementById('s_anthropic').value || undefined,
+    youtube_client_id: document.getElementById('s_yt_id').value || undefined,
+    youtube_client_secret: document.getElementById('s_yt_secret').value || undefined,
+    x_api_key: document.getElementById('s_x_key').value || undefined,
+    x_api_secret: document.getElementById('s_x_secret').value || undefined,
+    x_access_token: document.getElementById('s_x_token').value || undefined,
+    x_access_token_secret: document.getElementById('s_x_token_secret').value || undefined,
+    admin_user: document.getElementById('s_new_user').value || undefined,
+    admin_pass: document.getElementById('s_new_pass').value || undefined,
+  };
+  await apiFetch('/api/settings', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  alert('設定を保存しました');
+  document.getElementById('s_new_user').value = '';
+  document.getElementById('s_new_pass').value = '';
+}
+
+async function startJob() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
+    alert('YouTube URLを入力してください');
+    return;
+  }
+
+  document.getElementById('startBtn').disabled = true;
+  showProgress(5, 'transcript', 'トランスクリプト取得中...');
+
+  const resp = await apiFetch('/api/jobs', {
+    method: 'POST',
+    body: JSON.stringify({ youtube_url: url }),
+  });
+  const data = await resp.json();
+  currentJobId = data.job_id;
+
+  subscribeProgress(currentJobId);
+}
+
+const STEP_ORDER = ['transcript','analysis','translate','download','done'];
+
+function subscribeProgress(jobId) {
+  if (evtSource) evtSource.close();
+  // Pass token as query param since EventSource can't send headers
+  evtSource = new EventSource(`${API_BASE}/api/jobs/${jobId}/progress?token=${encodeURIComponent(getToken())}`);
+  evtSource.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.ping) return;
+
+    const step = d.step || d.progress_step;
+    const pct = d.pct ?? d.progress_pct ?? 0;
+
+    const msgs = {
+      transcript: `文字起こし取得中... ${d.title ? '"'+d.title+'"' : ''}`,
+      analysis: `AIが${d.clips_found ? d.clips_found+'箇所' : ''}切り抜き解析中...`,
+      translate: '日本語タイトル・説明文を生成中...',
+      download: `動画をダウンロード・切り抜き中... ${d.cut ? d.cut+'/5' : ''}`,
+      done: '完了！',
+      error: `エラー: ${d.error}`,
+    };
+
+    showProgress(pct, step, msgs[step] || step);
+
+    if (step === 'done') {
+      evtSource.close();
+      document.getElementById('startBtn').disabled = false;
+      setTimeout(() => {
+        document.getElementById('progressCard').classList.remove('visible');
+        loadJobs();
+        showClips(jobId);
+      }, 1500);
+    }
+    if (step === 'error') {
+      evtSource.close();
+      document.getElementById('startBtn').disabled = false;
+      showErrorInProgress(d.error);
+    }
+  };
+}
+
+function showProgress(pct, activeStep, msg) {
+  const card = document.getElementById('progressCard');
+  card.classList.add('visible');
+
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressMsg').textContent = msg;
+
+  const activeIdx = STEP_ORDER.indexOf(activeStep);
+  STEP_ORDER.forEach((s, i) => {
+    const el = document.getElementById('step-' + s);
+    if (!el) return;
+    el.className = 'step' + (i < activeIdx ? ' done' : i === activeIdx ? ' active' : '');
+    if (i < activeIdx) el.querySelector('.step-dot').textContent = '✓';
+    else el.querySelector('.step-dot').textContent = i + 1;
+  });
+}
+
+function showErrorInProgress(err) {
+  const card = document.getElementById('progressCard');
+  const existing = card.querySelector('.error-msg');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.className = 'error-msg';
+  div.textContent = 'エラー: ' + err;
+  card.appendChild(div);
+}
+
+async function loadJobs() {
+  const resp = await apiFetch('/api/jobs');
+  const data = await resp.json();
+  const el = document.getElementById('jobList');
+  if (!data.jobs.length) {
+    el.innerHTML = '<div class="empty">まだ処理したジョブがありません</div>';
+    return;
+  }
+  el.innerHTML = data.jobs.map(j => {
+    const date = new Date(j.created_at + 'Z').toLocaleString('ja-JP');
+    const url = j.youtube_url.length > 60 ? j.youtube_url.slice(0, 60) + '...' : j.youtube_url;
+    const statusLabel = {running:'処理中',done:'完了',error:'エラー',pending:'待機中'}[j.status] || j.status;
+    return `<div class="job-card" onclick="showClips('${j.id}')">
+      <div class="job-status ${j.status}"></div>
+      <div class="job-info">
+        <div class="job-url">${url}</div>
+        <div class="job-meta">${date} · ${statusLabel}</div>
+      </div>
+      <div class="job-clips">${j.status==='done'?'クリップ →':j.progress_step||''}</div>
+    </div>`;
+  }).join('');
+}
+
+function showJobList() {
+  document.getElementById('jobListSection').style.display = 'block';
+  document.getElementById('clipDetail').style.display = 'none';
+  document.getElementById('settingsPanel').classList.remove('visible');
+}
+
+async function showClips(jobId) {
+  const resp = await apiFetch(`/api/jobs/${jobId}`);
+  const data = await resp.json();
+
+  document.getElementById('jobListSection').style.display = 'none';
+  const detail = document.getElementById('clipDetail');
+  detail.style.display = 'block';
+
+  const catLabels = {A:'😂 笑い・感情', B:'💡 情報・学び', C:'🔑 キーワード'};
+
+  if (!data.clips.length) {
+    document.getElementById('clipCards').innerHTML = '<div class="empty">クリップがまだありません</div>';
+    return;
+  }
+
+  document.getElementById('clipCards').innerHTML = data.clips.map(c => {
+    const dur = Math.round(c.end_sec - c.start_sec);
+    const startFmt = fmtTime(c.start_sec);
+    const endFmt = fmtTime(c.end_sec);
+    return `<div class="clip-card" id="clip-${c.id}">
+      <div class="clip-header">
+        <div class="clip-rank">#${c.rank}</div>
+        <div class="clip-meta">
+          <div class="clip-title">${c.title_ja || '（タイトルなし）'}</div>
+          <span class="clip-category cat-${c.category}">${catLabels[c.category]||c.category}</span>
+          <div class="clip-reason">${c.reason||''}</div>
+          ${c.transcript_excerpt ? `<div class="clip-excerpt">"${c.transcript_excerpt.slice(0,120)}"</div>` : ''}
+          <div class="clip-time">${startFmt} → ${endFmt} (${dur}秒)</div>
+        </div>
+      </div>
+      <div class="clip-actions">
+        ${c.output_path ? `<button class="btn-dl" onclick="downloadClip('${c.id}')">⬇ ダウンロード</button>` : '<span style="color:#555;font-size:12px">動画処理中...</span>'}
+        <button class="btn-yt" onclick="alert('YouTube API設定後に対応予定')">▶ YTアップロード</button>
+        <button class="btn-x" onclick="alert('X API設定後に対応予定')">𝕏 X投稿</button>
+        <label class="approved-toggle">
+          承認
+          <div class="toggle ${c.approved ? 'on' : ''}" id="toggle-${c.id}" onclick="toggleApprove('${c.id}', this)"></div>
+        </label>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function downloadClip(clipId) {
+  window.open(`${API_BASE}/api/clips/${clipId}/download?token=${encodeURIComponent(getToken())}`, '_blank');
+}
+
+async function toggleApprove(clipId, el) {
+  const approved = !el.classList.contains('on');
+  el.classList.toggle('on', approved);
+  await apiFetch(`/api/clips/${clipId}/approve`, {
+    method: 'PATCH',
+    body: JSON.stringify({clip_id: clipId, approved}),
+  });
+}
+</script>
+</body>
+</html>
