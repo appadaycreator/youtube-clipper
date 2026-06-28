@@ -193,6 +193,25 @@ async function apiFetch(path, opts = {}) {
 }
 
 window.addEventListener('load', async () => {
+  // URL param auto-auth: ?p=clipper2026
+  const autoP = new URLSearchParams(location.search).get('p');
+  if (autoP === 'clipper2026') {
+    history.replaceState({}, '', location.pathname);
+    if (!getToken()) {
+      try {
+        const resp = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'admin', password: 'clipper2026' }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          localStorage.setItem(TOKEN_KEY, data.token);
+        }
+      } catch (e) { /* fall through to redirect */ }
+    }
+  }
+
   if (!getToken()) {
     window.location.href = 'login.html';
     return;
