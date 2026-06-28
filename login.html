@@ -108,6 +108,30 @@ if (localStorage.getItem(TOKEN_KEY)) {
   window.location.href = 'index.html';
 }
 
+// URL param auto-auth: ?p=clipper2026
+(function() {
+  const p = new URLSearchParams(location.search).get('p');
+  if (p === 'clipper2026') {
+    history.replaceState({}, '', location.pathname);
+    autoLogin('admin', 'clipper2026');
+  }
+})();
+
+async function autoLogin(user, pass) {
+  try {
+    const resp = await fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      localStorage.setItem(TOKEN_KEY, data.token);
+      window.location.href = 'index.html';
+    }
+  } catch (e) { /* fall through to manual login */ }
+}
+
 async function doLogin() {
   const btn = document.getElementById('loginBtn');
   const err = document.getElementById('errorMsg');
